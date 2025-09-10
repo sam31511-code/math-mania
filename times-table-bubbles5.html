@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Times Table Bubble Pop</title>
+  <style>
+    :root{
+      --bg: radial-gradient(1200px 800px at 70% -10%, #e6f0ff 0%, #f8fbff 35%, #f6f6ff 55%, #eef1ff 75%, #e9f6ff 100%);
+      --ink: #0f172a;
+      --accent: #6e9fff;
+      --accent-2:#a78bfa;
+      --danger:#ef4444;
+      --success:#22c55e;
+      --barrier:#ef4444;
+      --bubble-size: 72px;
+      --gap: 6px;
+      --radius: 9999px;
+      --shadow: 0 10px 30px rgba(16,24,40,.12), inset 0 6px 16px rgba(255,255,255,.7);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans"; color: var(--ink); background: var(--bg); }
+    #game{ display:flex; flex-direction:column; min-height:100dvh; gap:10px; padding:16px; }
+    .hud{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 12px; border-radius:16px; background:#ffffffcc; backdrop-filter: blur(6px); box-shadow: 0 6px 16px rgba(16,24,40,.08); }
+    .hud .pill{ display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:#f1f5ff; color:#21336b; font-weight:600; }
+    .hud .lives{ background:#ffe4e6; color:#9f1239; }
+    .hud .mode{ background:#ecfeff; color:#155e75; }
+    .hud button{ border:none; border-radius:12px; padding:10px 14px; font-weight:700; cursor:pointer; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:white; box-shadow: 0 6px 16px rgba(102, 126, 234, .35); }
+    .hud button.secondary{ background:#eef2ff; color:#334155; box-shadow:none; }
+
+    #playfield{ position:relative; flex:1 1 auto; min-height: 420px; width:100%; overflow:hidden; border-radius:24px; background: linear-gradient(180deg,#ffffffee,#f8fbff); box-shadow: 0 12px 28px rgba(16,24,40,.10) inset; }
+    #barrier{ position:absolute; top:0; bottom:0; left:25%; width:4px; background: repeating-linear-gradient(to bottom, var(--barrier), var(--barrier) 16px, rgba(239,68,68,0.2) 16px, rgba(239,68,68,0.2) 28px); box-shadow: 0 0 0 3px rgba(239,68,68,.08); pointer-events:none; }
+    .barrier-label{ position:absolute; left: calc(25% + 8px); top: 8px; padding:6px 10px; border-radius:10px; background:#fff; color:#991b1b; font-weight:700; font-size:12px; box-shadow: 0 2px 10px rgba(16,24,40,.1); }
+
+    .bubble{ position:absolute; display:flex; align-items:center; justify-content:center; text-align:center; width: var(--bubble-size); height: var(--bubble-size); border-radius: var(--radius); background: radial-gradient(circle at 30% 30%, #ffffff, #dbeafe 40%, #bfdbfe 70%, #93c5fd 100%); color:#0b2545; font-weight:800; font-size: clamp(16px, 2.2vw, 26px); box-shadow: var(--shadow); border: 2px solid rgba(255,255,255,.7); user-select:none; transform: translateZ(0); }
+    .bubble.popped{ animation: pop .22s ease-out forwards; }
+    @keyframes pop{ to { transform: scale(.2); opacity: 0; } }
+    .bubble.locked{ filter: grayscale(.2) brightness(.96); background: radial-gradient(circle at 70% 25%, #fff, #ffe4e6 45%, #fecaca 80%); border-color:#ffe4e6; }
+
+    .inputPanel{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px; border-radius:16px; background:#ffffffcc; backdrop-filter: blur(6px); box-shadow: 0 6px 16px rgba(16,24,40,.08); }
+    .inputPanel label{ font-weight:800; letter-spacing:.4px; }
+    .inputPanel input{ flex: 0 0 120px; max-width: 180px; height: 42px; padding: 10px 12px; border-radius:12px; border:2px solid #d1d5db; outline:none; font-size:18px; font-weight:700; letter-spacing:.5px; }
+    .inputPanel input:focus{ border-color: #9aa9ff; box-shadow: 0 0 0 4px rgba(99,102,241,.18); }
+    .inputPanel button{ border:none; border-radius:12px; padding:10px 14px; font-weight:800; cursor:pointer; background:linear-gradient(135deg, #34d399, #10b981); color:white; box-shadow: 0 6px 16px rgba(16,185,129,.35); }
+    #hint{ font-size:14px; opacity:.85; }
+
+    #overlay, #leaderboard{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(15, 23, 42, .52); z-index: 10; }
+    #overlay.hidden, #leaderboard.hidden{ display:none; }
+    .modal{ width:min(850px, 94vw); border-radius:24px; background:white; padding:24px; box-shadow: 0 30px 80px rgba(15,23,42,.45); }
+    .modal h1{ margin:0 0 10px; font-size: clamp(22px, 3.2vw, 32px); }
+    .modal p{ margin: 6px 0; line-height:1.5; }
+    .modal .controls{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+    .modal select, .modal input[type="number"], .modal input[type="checkbox"]{ padding:8px 10px; border-radius:10px; border:2px solid #e5e7eb; font-weight:700; }
+    .modal button{ border:none; border-radius:12px; padding:12px 16px; font-weight:900; cursor:pointer; background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:white; }
+
+    table{ width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td{ padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; font-size:14px; }
+    th{ background:#f8fafc; }
+
+    @media (max-width: 900px){ :root{ --bubble-size: 64px; } }
+    @media (max-width: 600px){ :root{ --bubble-size: 56px; } }
+  </style>
+</head>
+<body>
+  <div id="game" role="application" aria-label="Times Table Bubble Pop Game">
+    <div class="hud" aria-live="polite">
+      <span class="pill">Score: <span id="score">0</span></span>
+      <span class="pill">Speed: <span id="speed">1.00×</span></span>
+      <span class="pill">Pile: <span id="pileCount">0</span>/<span id="pileMax">—</span></span>
+      <span class="pill lives">Lives: <span id="lives">3</span></span>
+      <span class="pill mode">Mode: <span id="modeLabel">Normal</span></span>
+      <button id="pauseBtn" class="secondary" title="Pause/Resume (P)">Pause</button>
+      <button id="restartBtn" title="Restart (R)">Restart</button>
+      <button id="muteBtn" class="secondary" title="Mute/Unmute (M)">Sound: On</button>
+      <button id="boardBtn" class="secondary" title="Leaderboard">Leaderboard</button>
+    </div>
+
+    <div id="playfield">
+      <div id="barrier" aria-hidden="true"></div>
+      <div class="barrier-label">Safe zone ends here</div>
+    </div>
+
+    <div class="inputPanel">
+      <label for="answerInput">Answer</label>
+      <input id="answerInput" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Type & Enter" />
+      <button id="submitBtn">Pop</button>
+      <span id="hint"></span>
+    </div>
+
+    <!-- Start/Settings -->
+    <div id="overlay" class="hidden">
+      <div class="modal">
+        <h1>Times Table Bubble Pop</h1>
+        <p>Type the correct product to <strong>pop</strong> a bubble before it reaches the red barrier (25% from the left). If a bubble hits the barrier, it locks in place and adds to the <strong>pile</strong>. When the pile reaches the top, you lose a <strong>life</strong>. Lose all lives and it's game over. You can also clear the pile by answering the locked bubbles.</p>
+        <p><strong>Practice Mode</strong>: one bubble at a time. If it touches the barrier, you lose a life and the field clears for the next.</p>
+        <div class="controls">
+          <label>Table Range:
+            <select id="rangeSelect" aria-label="Times table range">
+              <option value="12" selected>1×1 to 12×12</option>
+              <option value="10">1×1 to 10×10</option>
+              <option value="6">1×1 to 6×6</option>
+            </select>
+          </label>
+          <label>Practice Table:
+            <select id="tableFilter">
+              <option value="0" selected>All Tables</option>
+              <option value="1">Only 1s</option>
+              <option value="2">Only 2s</option>
+              <option value="3">Only 3s</option>
+              <option value="4">Only 4s</option>
+              <option value="5">Only 5s</option>
+              <option value="6">Only 6s</option>
+              <option value="7">Only 7s</option>
+              <option value="8">Only 8s</option>
+              <option value="9">Only 9s</option>
+              <option value="10">Only 10s</option>
+              <option value="11">Only 11s</option>
+              <option value="12">Only 12s</option>
+            </select>
+          </label>
+          <label>Start Speed:
+            <input id="speedInput" type="number" min="60" max="300" step="10" value="60"> px/sec
+          </label>
+          <label>Spawn (ms):
+            <input id="spawnInput" type="number" min="400" max="4000" step="100" value="2500">
+          </label>
+          <label>Lives:
+            <input id="livesInput" type="number" min="1" max="9" step="1" value="3">
+          </label>
+          <label>
+            <input id="practiceInput" type="checkbox"> Practice Mode
+          </label>
+          <label>
+            <input id="soundInput" type="checkbox" checked> Sound On
+          </label>
+          <label>
+            <input id="hintsInput" type="checkbox" checked> Show factors hint on wrong answer
+          </label>
+          <button id="startBtn">Start</button>
+        </div>
+        <p style="margin-top:8px; opacity:.7">Hotkeys: <kbd>Enter</kbd> submit, <kbd>P</kbd> pause, <kbd>R</kbd> restart, <kbd>M</kbd> mute.</p>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard" class="hidden">
+      <div class="modal">
+        <h1>Leaderboard</h1>
+        <div id="boardWrap"></div>
+        <div class="controls">
+          <button id="closeBoard">Close</button>
+          <button id="resetBoard" class="secondary" style="background:#fee2e2; color:#7f1d1d;">Reset Leaderboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // Helpers
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  const shuffle = (arr) => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+  const qs = (id) => document.getElementById(id);
+
+  // DOM
+  const playfield = qs('playfield');
+  const overlay = qs('overlay');
+  const leaderboard = qs('leaderboard');
+  const boardWrap = qs('boardWrap');
+  const scoreEl = qs('score');
+  const speedEl = qs('speed');
+  const pileCountEl = qs('pileCount');
+  const pileMaxEl = qs('pileMax');
+  const livesEl = qs('lives');
+  const modeLabel = qs('modeLabel');
+  const pauseBtn = qs('pauseBtn');
+  const restartBtn = qs('restartBtn');
+  const muteBtn = qs('muteBtn');
+  const boardBtn = qs('boardBtn');
+  const startBtn = qs('startBtn');
+  const submitBtn = qs('submitBtn');
+  const answerInput = qs('answerInput');
+  const hintEl = qs('hint');
+  const rangeSelect = qs('rangeSelect');
+  const tableFilter = qs('tableFilter');
+  const speedInput = qs('speedInput');
+  const spawnInput = qs('spawnInput');
+  const livesInput = qs('livesInput');
+  const practiceInput = qs('practiceInput');
+  const soundInput = qs('soundInput');
+  const hintsInput = qs('hintsInput');
+  const closeBoard = qs('closeBoard');
+  const resetBoard = qs('resetBoard');
+
+  // Audio
+  let audioCtx = null; const ensureAudio = () => { if (!audioCtx || audioCtx.state === 'closed'){ const Ctx = window.AudioContext || window.webkitAudioContext; if (Ctx) audioCtx = new Ctx(); } };
+  const now = () => (audioCtx ? audioCtx.currentTime : 0);
+  const tone = (freq=440, dur=0.12, type='sine', gain=0.04, when=0, slideTo=null) => {
+    if (state.muted) return; ensureAudio(); if (!audioCtx) return;
+    const t0 = now() + when; const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.value = gain; o.connect(g).connect(audioCtx.destination);
+    if (slideTo){ o.frequency.setValueAtTime(freq,t0); o.frequency.exponentialRampToValueAtTime(slideTo, t0+dur); }
+    o.start(t0); o.stop(t0+dur);
+  };
+  const sfx = { pop(){ tone(740,.08,'sine',.05); tone(1040,.08,'sine',.045,.05); }, wrong(){ tone(220,.07,'square',.03); tone(180,.09,'square',.03,.06); }, lock(){ tone(200,.12,'triangle',.045); }, lose(){ tone(220,.14,'sawtooth',.04); }, over(){ tone(392,.15,'triangle',.05); tone(330,.18,'triangle',.05,.16); tone(262,.22,'triangle',.05,.35); } };
+
+  // State (defaults updated)
+  let state = { running:false, paused:false, score:0, speedPxPerSec:60, speedMultiplier:1, spawnEveryMs:2500, bubbleSize:72, barrierX:0, bubbles:[], deck:[], lastSpawn:0, lastTick:0, pile:[], rows:0, rowHeight:0, margins:{top:10,bottom:10}, maxN:12, livesMax:3, lives:3, muted:false, practiceMode:false, hints:true, filterTable:0 };
+
+  // Size/rows
+  const measure = () => {
+    const rect = playfield.getBoundingClientRect(); state.fieldW = rect.width; state.fieldH = rect.height; state.barrierX = state.fieldW * 0.25;
+    const root = getComputedStyle(document.documentElement); const bs = parseFloat(root.getPropertyValue('--bubble-size')); const gap = parseFloat(root.getPropertyValue('--gap')) || 6; state.bubbleSize = isNaN(bs)?72:bs; state.rowHeight = state.bubbleSize + gap;
+    const usableH = state.fieldH - state.margins.top - state.margins.bottom; state.rows = Math.max(2, Math.floor(usableH / state.rowHeight)); pileMaxEl.textContent = state.rows.toString();
+    restackPile();
+  };
+
+  const restackPile = () => {
+    const locked = state.pile.filter(Boolean); state.pile = []; locked.forEach(b => { b.el.classList.add('locked'); b.active=false; placeInPile(b); }); pileCountEl.textContent = state.pile.filter(Boolean).length;
+  };
+
+  // Deck
+  const buildDeck = (maxN, filterTable=0) => {
+    const d = [];
+    for (let a=1;a<=maxN;a++){
+      for (let b=1;b<=maxN;b++){
+        if (filterTable && !(a===filterTable || b===filterTable)) continue;
+        const ans = a*b; const swap = Math.random() < 0.5; const A = swap?b:a; const B = swap?a:b;
+        d.push({ a:A, b:B, ans, text: `${A}\u00D7${B}` });
+      }
+    }
+    return shuffle(d);
+  };
+
+  // Bubbles
+  const createBubbleEl = (label) => { const el = document.createElement('div'); el.className = 'bubble'; el.textContent = label; playfield.appendChild(el); return el; };
+  const spawnBubble = () => {
+    if (!state.deck.length) state.deck = buildDeck(state.maxN, state.filterTable);
+    const card = state.deck.pop(); const r = state.bubbleSize/2; const x = state.fieldW + r + rand(0, 40);
+    const minY = state.margins.top + r; const maxY = state.fieldH - state.margins.bottom - r; const y = rand(minY, maxY);
+    const el = createBubbleEl(card.text); el.style.width = el.style.height = `${state.bubbleSize}px`; el.style.left = `${x - r}px`; el.style.top = `${y - r}px`;
+    const bubble = { el, x, y, r, vx: -state.speedPxPerSec * state.speedMultiplier, card, active:true, locked:false };
+    state.bubbles.push(bubble);
+  };
+
+  const placeInPile = (b) => { const r = b.r; const centerX = state.barrierX + r; b.x = centerX; b.vx=0; b.active=false; b.locked=true; b.el.classList.add('locked');
+    let idx=-1; for (let i=state.rows-1;i>=0;i--){ if (!state.pile[i]){ idx=i; break; } } if (idx===-1) idx=0; state.pile[idx]=b;
+    const yCenter = state.fieldH - state.margins.bottom - r - idx*state.rowHeight; b.el.style.transition='top 220ms ease-out, left 160ms ease-out'; b.el.style.left = `${centerX - r}px`; b.el.style.top = `${yCenter - r}px`;
+    pileCountEl.textContent = state.pile.filter(Boolean).length; };
+
+  const removeBubble = (b) => { b.active=false; const i = state.bubbles.indexOf(b); if (i>=0) state.bubbles.splice(i,1); const p = state.pile.indexOf(b); if (p>=0){ state.pile[p]=undefined; pileCountEl.textContent = state.pile.filter(Boolean).length; } b.el.remove(); };
+  const popBubble = (b) => { b.el.classList.add('popped'); b.el.addEventListener('animationend', () => removeBubble(b), { once:true }); };
+
+  // Now considers moving AND locked bubbles (ignores already-popping)
+  const findClosestMatchingBubble = (answer) => { let chosen=null, bestX=Infinity; for (const b of state.bubbles){ if (!b || !b.el || !b.el.isConnected) continue; if (b.el.classList.contains('popped')) continue; if (b.card.ans===answer && b.x<bestX){ bestX=b.x; chosen=b; } } return chosen; };
+  const nearestActiveBubble = () => { let chosen=null, bestX=Infinity; for (const b of state.bubbles){ if (!b || !b.el || !b.el.isConnected) continue; if (b.el.classList.contains('popped')) continue; if (b.x<bestX){ bestX=b.x; chosen=b; } } return chosen; };
+
+  // Hints
+  const factorPairs = (n, limit) => { const pairs=[]; if (!Number.isInteger(n) || n<=0) return pairs; for (let i=1;i<=limit;i++){ if (n%i===0){ const j=n/i; if (j<=limit) pairs.push([i,j]); } } return pairs; };
+  let hintTimer = null; const showHint = (typed) => {
+    if (!state.hints) return; const limit = state.maxN; const pairs = factorPairs(typed, limit); const near = nearestActiveBubble();
+    let msg = pairs.length? `${typed} can be made by: ` + pairs.map(p=>`${p[0]}×${p[1]}`).join(', ') : `No ${typed} in 1–${limit} tables.`;
+    if (near) msg += ` • Nearest bubble: ${near.card.text}`;
+    hintEl.textContent = msg; clearTimeout(hintTimer); hintTimer = setTimeout(()=>{ hintEl.textContent=''; }, 4000);
+  };
+
+  // UI bits
+  const updateLivesUI = () => { livesEl.textContent = state.lives.toString(); };
+  const setModeUI = () => { modeLabel.textContent = state.practiceMode ? 'Practice' : 'Normal'; };
+
+  // Submit
+  const submitAnswer = () => {
+    const val = answerInput.value.trim(); if (!val) return; const n = Number(val); if (!Number.isFinite(n)) return; answerInput.value = '';
+    const target = findClosestMatchingBubble(n);
+    if (target){ const dist = Math.max(target.x - (state.barrierX + target.r), 0); const proximity = 1 - clamp(dist / (state.fieldW * 0.75), 0, 1); const gained = Math.round(10 + 90 * proximity);
+      state.score += gained; scoreEl.textContent = state.score.toString(); sfx.pop(); popBubble(target);
+    } else { sfx.wrong(); showHint(n); answerInput.style.transition='transform 60ms'; answerInput.style.transform='translateX(-3px)'; setTimeout(()=>{answerInput.style.transform='translateX(3px)';},60); setTimeout(()=>{answerInput.style.transform='translateX(0)';},120); }
+    answerInput.focus();
+  };
+
+  const clearPile = () => { const locked = state.pile.filter(Boolean); for (const b of locked){ try{ b.el.remove(); }catch(e){} } state.pile=[]; pileCountEl.textContent='0'; };
+  const loseLife = () => { state.lives=Math.max(0,state.lives-1); updateLivesUI(); sfx.lose(); if (state.lives<=0){ gameOver(); return; } clearPile(); };
+
+  // Loop
+  const tick = (t) => {
+    if (!state.running || state.paused){ state.lastTick=t; requestAnimationFrame(tick); return; }
+    const dt = state.lastTick ? (t - state.lastTick) / 1000 : 0; state.lastTick=t;
+    if (!state.practiceMode) state.speedMultiplier = clamp(state.speedMultiplier + dt * 0.015, 1, 2.25); speedEl.textContent = `${(state.speedMultiplier).toFixed(2)}×${state.practiceMode ? ' (Practice)' : ''}`;
+
+    for (const b of state.bubbles){
+      if (!b || !b.el || !b.el.isConnected) continue;
+      if (!b.locked){
+        b.vx = -state.speedPxPerSec * state.speedMultiplier; b.x += b.vx * dt; b.el.style.left = `${b.x - b.r}px`;
+        if (b.x - b.r <= state.barrierX){
+          sfx.lock(); placeInPile(b);
+          if (state.practiceMode){ loseLife(); }
+          else { if (state.pile.filter(Boolean).length >= state.rows) loseLife(); }
+        }
+      }
+    }
+
+    if (state.practiceMode){
+      const activeCount = state.bubbles.filter(b=>b && !b.locked && b.el && b.el.isConnected).length;
+      const anyLocked = state.pile.some(Boolean);
+      if (activeCount===0 && !anyLocked) spawnBubble();
+    } else {
+      if (!state.lastSpawn) state.lastSpawn = performance.now();
+      if (t - state.lastSpawn >= state.spawnEveryMs){ spawnBubble(); state.lastSpawn = t; state.spawnEveryMs = Math.max(600, state.spawnEveryMs * 0.995); }
+    }
+
+    requestAnimationFrame(tick);
+  };
+
+  // Leaderboard
+  const LB_KEY = 'ttb_leaderboard_v1';
+  const loadLB = () => { try{ return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); }catch(e){ return []; } };
+  const saveLB = (arr) => { try{ localStorage.setItem(LB_KEY, JSON.stringify(arr)); }catch(e){} };
+  const addScore = (score) => {
+    const entry = { score, date: new Date().toISOString(), mode: state.practiceMode?'Practice':'Normal', range: `1–${state.maxN}`, table: state.filterTable? `${state.filterTable}s` : 'All' };
+    const arr = loadLB(); arr.push(entry); arr.sort((a,b)=>b.score-a.score); saveLB(arr.slice(0,20));
+  };
+  const renderBoard = () => {
+    const arr = loadLB(); if (!arr.length){ boardWrap.innerHTML = '<p>No scores yet. Play a game!</p>'; return; }
+    const rows = arr.slice(0,10).map((e,i)=>`<tr><td>${i+1}</td><td>${e.score}</td><td>${e.mode}</td><td>${e.range}${e.mode==='Practice' ? ` • ${e.table}`:''}</td><td>${new Date(e.date).toLocaleString()}</td></tr>`).join('');
+    boardWrap.innerHTML = `<table><thead><tr><th>#</th><th>Score</th><th>Mode</th><th>Settings</th><th>When</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+
+  // Game lifecycle
+  const gameOver = () => {
+    state.running=false; state.paused=false; sfx.over(); addScore(state.score);
+    setTimeout(()=>{ overlay.classList.remove('hidden'); overlay.querySelector('h1').textContent='Game Over'; const p = overlay.querySelector('p'); p.innerHTML = `Final score: <strong>${state.score}</strong>.`; startBtn.textContent='Play Again'; },120);
+  };
+
+  const clearField = () => { state.bubbles.forEach(b=>{ try{ b.el.remove(); }catch(e){} }); state.bubbles=[]; clearPile(); };
+  const restart = () => {
+    clearField(); state.score=0; scoreEl.textContent='0'; state.speedMultiplier=1; speedEl.textContent='1.00×'; state.lastSpawn=0; state.lastTick=0;
+    state.spawnEveryMs = Number(spawnInput.value) || 2500; state.speedPxPerSec = Number(speedInput.value) || 60; state.maxN = Number(rangeSelect.value) || 12; state.livesMax = Number(livesInput.value) || 3; state.lives = state.livesMax; updateLivesUI(); state.practiceMode = !!practiceInput.checked; setModeUI(); state.muted = !soundInput.checked; muteBtn.textContent = `Sound: ${state.muted?'Off':'On'}`; state.hints = !!hintsInput.checked; state.filterTable = Number(tableFilter.value)||0;
+    state.deck = buildDeck(state.maxN, state.filterTable); overlay.classList.add('hidden'); answerInput.value=''; answerInput.focus(); measure(); state.running=true; state.paused=false; spawnBubble(); if (!state.practiceMode) setTimeout(spawnBubble, 600); ensureAudio(); if (audioCtx && audioCtx.state==='suspended'){ audioCtx.resume(); }
+  };
+  const pauseToggle = () => { if (!state.running) return; state.paused=!state.paused; pauseBtn.textContent = state.paused?'Resume':'Pause'; if (!state.paused) answerInput.focus(); };
+  const toggleMute = () => { state.muted=!state.muted; muteBtn.textContent = `Sound: ${state.muted?'Off':'On'}`; if (!state.muted){ ensureAudio(); if (audioCtx && audioCtx.state==='suspended'){ audioCtx.resume(); } } };
+
+  // Events
+  window.addEventListener('resize', measure);
+  startBtn.addEventListener('click', restart);
+  restartBtn.addEventListener('click', restart);
+  pauseBtn.addEventListener('click', pauseToggle);
+  muteBtn.addEventListener('click', toggleMute);
+  submitBtn.addEventListener('click', submitAnswer);
+  answerInput.addEventListener('keydown', (e)=>{ if (e.key==='Enter') submitAnswer(); });
+  document.addEventListener('keydown', (e)=>{ const k=e.key.toLowerCase(); if (k==='p') pauseToggle(); if (k==='r') restart(); if (k==='m') toggleMute(); });
+  boardBtn.addEventListener('click', ()=>{ renderBoard(); leaderboard.classList.remove('hidden'); });
+  closeBoard.addEventListener('click', ()=> leaderboard.classList.add('hidden'));
+  resetBoard.addEventListener('click', ()=>{ localStorage.removeItem(LB_KEY); renderBoard(); });
+
+  // Init
+  measure(); requestAnimationFrame(tick); setTimeout(()=>answerInput.focus(), 50);
+  overlay.classList.remove('hidden');
+})();
+</script>
+</body>
+</html>
